@@ -1,0 +1,7 @@
+name: app_environment
+channels:
+  - conda-forge
+dependencies:
+  - streamlit
+  - pandas
+  - numpy
