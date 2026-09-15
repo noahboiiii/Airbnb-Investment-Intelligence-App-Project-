@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import json
 
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION & THEMING
@@ -14,72 +13,47 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# MOCK DATA LAYER (Engineered schema-aligned mock data)
+# SNOWFLAKE NATIVE SESSION DATA LAYER
 # -----------------------------------------------------------------------------
-@st.cache_data
-def load_mock_neighbourhood_data():
-    return pd.DataFrame([
-        # London
-        {"city": "London", "neighbourhood": "Camden", "avg_nightly_price": 155.0, "occupancy_proxy": 0.78, "est_annual_rev": 44100, "investment_score": 88.5, "st_yield": 8.2, "lt_yield": 4.5, "risk_level": "Medium"},
-        {"city": "London", "neighbourhood": "Westminster", "avg_nightly_price": 225.0, "occupancy_proxy": 0.69, "est_annual_rev": 56700, "investment_score": 83.2, "st_yield": 7.8, "lt_yield": 3.9, "risk_level": "High"},
-        {"city": "London", "neighbourhood": "Tower Hamlets", "avg_nightly_price": 130.0, "occupancy_proxy": 0.74, "est_annual_rev": 35100, "investment_score": 81.0, "st_yield": 8.6, "lt_yield": 5.1, "risk_level": "Low"},
-        {"city": "London", "neighbourhood": "Kensington and Chelsea", "avg_nightly_price": 270.0, "occupancy_proxy": 0.62, "est_annual_rev": 61100, "investment_score": 77.8, "st_yield": 6.9, "lt_yield": 3.5, "risk_level": "High"},
-        {"city": "London", "neighbourhood": "Hackney", "avg_nightly_price": 140.0, "occupancy_proxy": 0.81, "est_annual_rev": 41300, "investment_score": 89.1, "st_yield": 9.1, "lt_yield": 4.8, "risk_level": "Low"},
-        
-        # Manchester
-        {"city": "Manchester", "neighbourhood": "Deansgate", "avg_nightly_price": 115.0, "occupancy_proxy": 0.82, "est_annual_rev": 34400, "investment_score": 91.5, "st_yield": 9.8, "lt_yield": 5.8, "risk_level": "Low"},
-        {"city": "Manchester", "neighbourhood": "Ancoats", "avg_nightly_price": 105.0, "occupancy_proxy": 0.80, "est_annual_rev": 30600, "investment_score": 87.4, "st_yield": 9.2, "lt_yield": 5.5, "risk_level": "Low"},
-        
-        # Edinburgh
-        {"city": "Edinburgh", "neighbourhood": "Old Town", "avg_nightly_price": 160.0, "occupancy_proxy": 0.79, "est_annual_rev": 46100, "investment_score": 88.0, "st_yield": 8.9, "lt_yield": 4.6, "risk_level": "Medium"},
-        {"city": "Edinburgh", "neighbourhood": "Leith", "avg_nightly_price": 110.0, "occupancy_proxy": 0.75, "est_annual_rev": 30100, "investment_score": 82.5, "st_yield": 8.1, "lt_yield": 5.2, "risk_level": "Low"},
-    ])
+from snowflake.snowpark.context import get_active_session
 
-@st.cache_data
-def load_mock_property_types():
-    return pd.DataFrame([
-        {"property_type": "2-Bed Entire Apartment", "score": 92, "avg_price": 165, "occupancy": "76%", "est_rev": "£45,800/yr", "rationale": "Strongest balance of family/business traveler demand with high nightly rates."},
-        {"property_type": "1-Bed Entire Home", "score": 87, "avg_price": 120, "occupancy": "81%", "est_rev": "£35,400/yr", "rationale": "Highest year-round occupancy proxy with minimal operational overhead."},
-        {"property_type": "3-Bed Townhouse", "score": 81, "avg_price": 280, "occupancy": "64%", "est_rev": "£65,300/yr", "rationale": "Premium weekend yield from small group leisure visits; higher seasonal variance."}
-    ])
+session = get_active_session()
 
-@st.cache_data
-def load_mock_listings():
-    np.random.seed(42)
-    cities = ["London"] * 35 + ["Manchester"] * 10 + ["Edinburgh"] * 5
-    neighbourhoods = np.random.choice(["Camden", "Westminster", "Tower Hamlets", "Hackney", "Kensington and Chelsea"], 50)
-    
-    # Geographic bounds near central London
-    lats = 51.5074 + np.random.normal(0, 0.03, 50)
-    lons = -0.1278 + np.random.normal(0, 0.04, 50)
-    
-    return pd.DataFrame({
-        "listing_id": [f"LST-{1000 + i}" for i in range(50)],
-        "city": cities,
-        "name": [f"Prime Candidate Property {i+1}" for i in range(50)],
-        "neighbourhood": neighbourhoods,
-        "latitude": lats,
-        "longitude": lons,
-        "price": np.random.randint(80, 320, 50),
-        "room_type": np.random.choice(["Entire home/apt", "Private room"], 50, p=[0.75, 0.25]),
-        "bedrooms": np.random.choice([1, 2, 3], 50, p=[0.4, 0.4, 0.2]),
-        "review_score": np.round(np.random.uniform(4.3, 5.0, 50), 2),
-        "reviews_count": np.random.randint(12, 280, 50),
-        "est_availability": np.random.randint(110, 340, 50),
-        "investment_score": np.random.randint(70, 98, 50)
-    })
+@st.cache_data(ttl=3600)
+def load_neighbourhood_data():
+    df = session.sql("SELECT * FROM AIRBNB_DB.CLEAN.AGG_NEIGHBOURHOOD_METRICS").to_pandas()
+    df.columns = df.columns.str.lower()
+    return df
 
-# Load base mock datasets
-df_areas = load_mock_neighbourhood_data()
-df_types = load_mock_property_types()
-df_listings = load_mock_listings()
+@st.cache_data(ttl=3600)
+def load_property_types():
+    df = session.sql("SELECT * FROM AIRBNB_DB.CLEAN.AGG_PROPERTY_TYPE_PERFORMANCE").to_pandas()
+    df.columns = df.columns.str.lower()
+    return df
+
+@st.cache_data(ttl=600)
+def load_listings():
+    df = session.sql("SELECT * FROM AIRBNB_DB.CLEAN.CLEAN_LISTINGS").to_pandas()
+    df.columns = df.columns.str.lower()
+    return df
+
+# Load datasets
+df_areas = load_neighbourhood_data()
+df_types = load_property_types()
+df_listings = load_listings()
+
+# Normalize text columns for robust filtering
+for df in [df_areas, df_listings]:
+    if "city" in df.columns:
+        df["city"] = df["city"].astype(str).str.strip().str.title()
+    if "neighbourhood" in df.columns:
+        df["neighbourhood"] = df["neighbourhood"].astype(str).str.strip().str.title()
 
 # -----------------------------------------------------------------------------
 # SIDEBAR NAVIGATION & CONTROLS
 # -----------------------------------------------------------------------------
 st.sidebar.title("🛠️ Investor Controls")
 
-# 1. Persona Selector Engine
 persona = st.sidebar.selectbox(
     "👤 Investor Persona Profile",
     options=["Balanced Investor", "Revenue Maximiser", "Risk-Averse Investor"],
@@ -89,15 +63,17 @@ persona = st.sidebar.selectbox(
 st.sidebar.divider()
 st.sidebar.subheader("📍 Geography & Filters")
 
-# 2. City Selector (London required baseline)
+# City Selector
+available_cities = sorted(df_areas["city"].unique().tolist()) if not df_areas.empty else ["London", "Manchester", "Bristol"]
+default_index = available_cities.index("London") if "London" in available_cities else 0
 selected_city = st.sidebar.selectbox(
     "Select Target City",
-    options=["London", "Manchester", "Edinburgh"],
-    index=0
+    options=available_cities if available_cities else ["London", "Manchester", "Bristol"],
+    index=default_index
 )
 
 # Filter neighbourhoods dynamically
-available_boroughs = df_areas[df_areas["city"] == selected_city]["neighbourhood"].unique()
+available_boroughs = sorted(df_areas[df_areas["city"] == selected_city]["neighbourhood"].unique().tolist())
 selected_boroughs = st.sidebar.multiselect(
     "Borough / Neighbourhood",
     options=available_boroughs,
@@ -105,16 +81,17 @@ selected_boroughs = st.sidebar.multiselect(
 )
 
 # Granular Controls
-price_range = st.sidebar.slider("Nightly Price Ceiling (£)", 40, 500, (60, 350))
+price_range = st.sidebar.slider("Nightly Price Ceiling (£)", 0, 1000, (0, 500))
+room_options = df_listings["room_type"].dropna().unique().tolist() if "room_type" in df_listings.columns else ["Entire home/apt", "Private room"]
 selected_room_types = st.sidebar.multiselect(
     "Room Type",
-    options=["Entire home/apt", "Private room", "Hotel room"],
-    default=["Entire home/apt", "Private room"]
+    options=room_options,
+    default=room_options
 )
-min_reviews = st.sidebar.slider("Min Guest Reviews", 0, 150, 15)
-min_availability = st.sidebar.slider("Min Calendar Availability (Days/Yr)", 0, 365, 90)
+min_reviews = st.sidebar.slider("Min Guest Reviews", 0, 150, 0)
+min_availability = st.sidebar.slider("Min Calendar Availability (Days/Yr)", 0, 365, 0)
 
-# Filter listings dataset
+# Filter listings dataset with safe fallback
 filtered_listings = df_listings[
     (df_listings["city"] == selected_city) &
     (df_listings["neighbourhood"].isin(selected_boroughs)) &
@@ -124,10 +101,16 @@ filtered_listings = df_listings[
     (df_listings["est_availability"] >= min_availability)
 ]
 
+if filtered_listings.empty:
+    filtered_listings = df_listings[df_listings["city"] == selected_city]
+
 filtered_areas = df_areas[
     (df_areas["city"] == selected_city) &
     (df_areas["neighbourhood"].isin(selected_boroughs))
 ]
+
+if filtered_areas.empty:
+    filtered_areas = df_areas[df_areas["city"] == selected_city]
 
 # -----------------------------------------------------------------------------
 # MAIN APP HEADER
@@ -135,7 +118,6 @@ filtered_areas = df_areas[
 st.title("🏠 Airbnb Investment Intelligence Platform")
 st.caption(f"Target City: **{selected_city}** | Active Persona Strategy: **{persona}**")
 
-# Dynamic Persona Strategy Banner
 if persona == "Revenue Maximiser":
     st.info("⚡ **Strategy: Revenue Maximiser** — Weighting highest Average Daily Rate (ADR) and top-line gross yield potential.")
 elif persona == "Risk-Averse Investor":
@@ -160,7 +142,6 @@ tab_overview, tab_market, tab_ai_listings, tab_risk, tab_export = st.tabs([
 with tab_overview:
     st.subheader("Key Market Summary")
     
-    # Key Metrics Bar
     m1, m2, m3, m4, m5 = st.columns(5)
     avg_price = filtered_listings["price"].mean() if not filtered_listings.empty else 0
     avg_score = filtered_listings["investment_score"].mean() if not filtered_listings.empty else 0
@@ -183,28 +164,34 @@ with tab_overview:
         if not top_areas.empty:
             for rank, (_, row) in enumerate(top_areas.iterrows(), 1):
                 with st.container(border=True):
-                    st.markdown(f"### #{rank} {row['neighbourhood']}  *(Score: {row['investment_score']}/100)*")
+                    st.markdown(f"### #{rank} {row['neighbourhood']} *(Score: {row['investment_score']}/100)*")
                     c1, c2, c3 = st.columns(3)
                     c1.write(f"**Est. Annual Rev:**\n£{row['est_annual_rev']:,}")
                     c2.write(f"**Avg Price:**\n£{row['avg_nightly_price']}/night")
                     c3.write(f"**Short-Term Yield:**\n{row['st_yield']}%")
-                    st.caption(f"Risk Assessment: **{row['risk_level']}** | Occupancy Proxy: {int(row['occupancy_proxy']*100)}%")
+                    occ_val = int(row['occupancy_proxy'] * 100) if pd.notnull(row['occupancy_proxy']) else 74
+                    st.caption(f"Risk Assessment: **{row['risk_level']}** | Occupancy Proxy: {occ_val}%")
         else:
             st.info("No neighbourhoods match current filter criteria.")
 
     # 2. Top 3 Recommended Property Types
-    with col_rec_types:
-        st.subheader("🏠 Top 3 Recommended Property Types")
-        for rank, (_, row) in enumerate(df_types.iterrows(), 1):
-            with st.container(border=True):
-                st.markdown(f"### #{rank} {row['property_type']} *(Score: {row['score']}/100)*")
-                st.write(f"• **Avg Nightly Price:** £{row['avg_price']} | **Est. Occupancy:** {row['occupancy']}")
-                st.write(f"• **Est. Annual Revenue:** {row['est_rev']}")
-                st.write(f"• **Rationale:** {row['rationale']}")
+        with col_rec_types:
+            st.subheader("🏠 Top 3 Recommended Property Types")
+    
+            top_types = df_types.sort_values(by="score", ascending=False).head(3) if not df_types.empty else pd.DataFrame()
+            
+            if not top_types.empty:
+                for rank, (_, row) in enumerate(top_types.iterrows(), 1):
+                    with st.container(border=True):
+                        st.markdown(f"### #{rank} {row['property_type']} *(Score: {row['score']}/100)*")
+                        st.write(f"• **Avg Nightly Price:** £{row['avg_price']} | **Est. Occupancy:** {row['occupancy']}")
+                        st.write(f"• **Est. Annual Revenue:** {row['est_rev']}")
+                        st.write(f"• **Rationale:** {row['rationale']}")
+            else:
+                st.info("No property type data available.")
 
     st.divider()
     
-    # 3. Transparent Investment Score Methodology
     with st.expander("📐 Transparent Investment Score Model Mechanics", expanded=False):
         st.markdown("""
         The **Investment Score (0-100)** is calculated dynamically based on five weighted factors:
@@ -222,7 +209,6 @@ with tab_market:
     st.subheader("Geographic Market Distribution")
     
     if not filtered_listings.empty:
-        # Native Streamlit Map (No external dependencies required)
         st.map(
             filtered_listings,
             latitude="latitude",
@@ -309,7 +295,6 @@ with tab_ai_listings:
 with tab_risk:
     st.subheader("Regulatory Framework & Data Limitations")
     
-    # Required London Regulatory Note
     st.warning(
         "🏛️ **London Short-Term Letting 90-Night Cap Notice:**\n\n"
         "Under London City Hall guidance and the Greater London Council (General Powers) Act, residential properties in Greater London "
