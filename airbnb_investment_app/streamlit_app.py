@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
+
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION & THEMING
 # -----------------------------------------------------------------------------
@@ -241,39 +242,74 @@ with tab_market:
 # TAB 3: AI REVIEW INTELLIGENCE & LISTINGS
 # -----------------------------------------------------------------------------
 with tab_ai_listings:
-    st.subheader("AI Guest Sentiment & Review Extraction")
+    st.subheader("🤖 AI Guest Sentiment & Review Intelligence")
     
     col_ai_left, col_ai_right = st.columns([1, 2])
     
+    # Check if filtered listings exist
+    if not filtered_listings.empty:
+        # Create a mapping dictionary: { "Listing Name (ID: 12345)": listing_id }
+        # Using name + ID prevents errors if two listings happen to share the same name
+        listing_options = {
+            f"{row['name']} (ID: {row['listing_id']})": row['listing_id'] 
+            for _, row in filtered_listings.iterrows()
+        }
+    else:
+        listing_options = {}
+    
     with col_ai_left:
-        st.markdown("#### 💬 Review Theme Summary")
+        st.markdown("#### 💬 Dynamic Review Summary")
         
-        with st.container(border=True):
-            st.markdown("##### 🟢 Positive Key Drivers")
-            st.write("• **Location Proximity:** Frequent praise for nearby tube/transit stations.")
-            st.write("• **Seamless Check-in:** High sentiment regarding keyless keypad entries.")
-            st.write("• **Cleanliness Standard:** High correlation with 4.9+ star review scores.")
+        if listing_options:
+            # Let the user select by human-readable name
+            selected_option = st.selectbox("Select Candidate Property by Name", list(listing_options.keys()))
+            
+            # Retrieve the underlying listing_id from the selected dictionary key
+            selected_candidate = listing_options[selected_option]
+            
+            match_row = filtered_listings[filtered_listings["listing_id"] == selected_candidate]
+            raw_reviews = (
+                f"Listing name: {match_row.iloc[0]['name']}. "
+                f"Neighbourhood: {match_row.iloc[0]['neighbourhood']}. "
+                f"Review score: {match_row.iloc[0]['review_score']}. "
+                f"Room type: {match_row.iloc[0]['room_type']}. "
+                f"Nightly Price: £{match_row.iloc[0]['price']}."
+            ) if not match_row.empty else "No review data available."
 
-        with st.container(border=True):
-            st.markdown("##### 🔴 Friction Points & Risk Flags")
-            st.write("• **Street Noise:** Common complaint in central ground-floor properties.")
-            st.write("• **Heating/Wi-Fi Drops:** Secondary operational risks noted in guest comments.")
-
-        st.markdown("#### ✨ AI Rationale Generator")
-        candidate_list = filtered_listings["listing_id"].tolist() if not filtered_listings.empty else ["LST-1000"]
-        selected_candidate = st.selectbox("Select Candidate Property", candidate_list)
-        
-        if st.button("Generate Rationale"):
-            cand_data = filtered_listings[filtered_listings["listing_id"] == selected_candidate]
-            if not cand_data.empty:
-                c_row = cand_data.iloc[0]
-                st.info(
-                    f"**AI Investor Rationale for {selected_candidate}:**\n\n"
-                    f"Property located in **{c_row['neighbourhood']}** priced at **£{c_row['price']}/night** with a score of **{c_row['investment_score']}/100**.\n\n"
-                    f"* **Strengths:** Outstanding guest satisfaction score ({c_row['review_score']}⭐ across {c_row['reviews_count']} reviews).\n"
-                    f"* **Revenue Strategy:** Above-average availability ({c_row['est_availability']} days/yr) provides immediate operational revenue capture.\n"
-                    f"* **Actionable Insight:** Review sentiment suggests adding blackout curtains to further boost premium weekend rates."
-                )
+            if st.button("Generate AI Sentiment & Rationale", type="primary"):
+                with st.spinner("Analyzing guest reviews with Snowflake Cortex AI..."):
+                    
+                    prompt = f"""
+                    You are an expert real estate investment analyst.
+                    Analyze the following details for an Airbnb listing through the lens of a '{persona}' investor profile.
+                    
+                    Data: "{raw_reviews}"
+                    
+                    Provide your response in this strict markdown format:
+                    ### 🟢 Positive Key Drivers
+                    - [Bullet 1]
+                    - [Bullet 2]
+                    
+                    ### 🔴 Friction Points & Risk Flags
+                    - [Bullet 1]
+                    - [Bullet 2]
+                    
+                    ### 💡 Tailored Investment Rationale
+                    [A concise 2-sentence paragraph explaining whether this fits a {persona} strategy].
+                    """
+                    
+                    # Escape quotes for SQL safety and use 'mistral-large3' (active GA model)
+                    escaped_prompt = prompt.replace("'", "''")
+                    cortex_query = f"SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large3', '{escaped_prompt}') AS ai_response"
+                    
+                    try:
+                        ai_df = session.sql(cortex_query).to_pandas()
+                        ai_output = ai_df['AI_RESPONSE'].iloc[0]
+                        st.markdown(ai_output)
+                    except Exception as e:
+                        st.error(f"Could not generate AI response: {e}")
+        else:
+            st.info("No listings available for analysis with current filters.")
 
     with col_ai_right:
         st.markdown("#### 📋 Candidate Listing Shortlist")
