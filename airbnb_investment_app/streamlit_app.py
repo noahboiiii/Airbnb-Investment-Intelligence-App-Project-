@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION & THEMING
 # -----------------------------------------------------------------------------
@@ -14,27 +13,27 @@ st.set_page_config(
 )
 
 # -----------------------------------------------------------------------------
-# SNOWFLAKE NATIVE SESSION DATA LAYER
+# EXTERNAL / STANDARD SNOWFLAKE CONNECTION LAYER
 # -----------------------------------------------------------------------------
-from snowflake.snowpark.context import get_active_session
-
-session = get_active_session()
+# Initialize Streamlit's native Snowflake connection (reads from st.secrets)
+conn = st.connection("snowflake", type="snowflake")
 
 @st.cache_data(ttl=3600)
 def load_neighbourhood_data():
-    df = session.sql("SELECT * FROM AIRBNB_DB.CLEAN.AGG_NEIGHBOURHOOD_METRICS").to_pandas()
+    # conn.query() automatically returns a pandas DataFrame
+    df = conn.query("SELECT * FROM AIRBNB_DB.CLEAN.AGG_NEIGHBOURHOOD_METRICS", ttl=3600)
     df.columns = df.columns.str.lower()
     return df
 
 @st.cache_data(ttl=3600)
 def load_property_types():
-    df = session.sql("SELECT * FROM AIRBNB_DB.CLEAN.AGG_PROPERTY_TYPE_PERFORMANCE").to_pandas()
+    df = conn.query("SELECT * FROM AIRBNB_DB.CLEAN.AGG_PROPERTY_TYPE_PERFORMANCE", ttl=3600)
     df.columns = df.columns.str.lower()
     return df
 
 @st.cache_data(ttl=600)
 def load_listings():
-    df = session.sql("SELECT * FROM AIRBNB_DB.CLEAN.CLEAN_LISTINGS").to_pandas()
+    df = conn.query("SELECT * FROM AIRBNB_DB.CLEAN.CLEAN_LISTINGS", ttl=600)
     df.columns = df.columns.str.lower()
     return df
 
