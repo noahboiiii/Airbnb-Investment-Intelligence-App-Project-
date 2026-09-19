@@ -1,6 +1,22 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+
+# 1. Read the custom secret variables
+pvk_bytes = st.secrets["private_key_pem"].encode("utf-8")
+passphrase_bytes = st.secrets["private_key_passphrase"].encode("utf-8")
+
+# 2. Convert PEM text to DER bytes format required by Snowflake
+pvk_obj = serialization.load_pem_private_key(
+    pvk_bytes, password=passphrase_bytes, backend=default_backend()
+)
+pkcs8_bytes = pvk_obj.private_bytes(
+    encoding=serialization.Encoding.DER,
+    format=serialization.PrivateFormat.PKCS8,
+    encryption_algorithm=serialization.NoEncryption(),
+)
 
 # -----------------------------------------------------------------------------
 # PAGE CONFIGURATION & THEMING
@@ -16,7 +32,7 @@ st.set_page_config(
 # EXTERNAL / STANDARD SNOWFLAKE CONNECTION LAYER
 # -----------------------------------------------------------------------------
 # Initialize Streamlit's native Snowflake connection (reads from st.secrets)
-conn = st.connection("snowflake", type="snowflake")
+conn = st.connection("snowflake", type="snowflake", private_key=pkcs8_bytes,)
 
 @st.cache_data(ttl=3600)
 def load_neighbourhood_data():
@@ -302,8 +318,8 @@ with tab_ai_listings:
                     cortex_query = f"SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large3', '{escaped_prompt}') AS ai_response"
                     
                     try:
-                        ai_df = session.sql(cortex_query).to_pandas()
-                        ai_output = ai_df['AI_RESPONSE'].iloc[0]
+                        ai_df = conn.query(cortex_query)
+                        ai_output = ai_df['ai_response'].iloc[0]
                         st.markdown(ai_output)
                     except Exception as e:
                         st.error(f"Could not generate AI response: {e}")
