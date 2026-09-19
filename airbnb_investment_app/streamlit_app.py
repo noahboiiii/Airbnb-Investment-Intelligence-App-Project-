@@ -58,12 +58,18 @@ df_areas = load_neighbourhood_data()
 df_types = load_property_types()
 df_listings = load_listings()
 
+# Cast longitude and latitude to correct float types
+for col in ["latitude", "longitude"]:
+  if col in df_listings.columns:
+    df_listings[col] = df_listings[col].astype(float)
+
+
 # Normalize text columns for robust filtering
 for df in [df_areas, df_listings]:
-    if "city" in df.columns:
-        df["city"] = df["city"].astype(str).str.strip().str.title()
-    if "neighbourhood" in df.columns:
-        df["neighbourhood"] = df["neighbourhood"].astype(str).str.strip().str.title()
+  if "city" in df.columns:
+    df["city"] = df["city"].astype(str).str.strip().str.title()
+  if "neighbourhood" in df.columns:
+    df["neighbourhood"] = df["neighbourhood"].astype(str).str.strip().str.title()
 
 # -----------------------------------------------------------------------------
 # SIDEBAR NAVIGATION & CONTROLS
