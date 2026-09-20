@@ -321,7 +321,7 @@ with tab_ai_listings:
                     
                     # Escape quotes for SQL safety and use 'mistral-large3' (active GA model)
                     escaped_prompt = prompt.replace("'", "''")
-                    cortex_query = f"SELECT SNOWFLAKE.CORTEX.COMPLETE('mistral-large', '{escaped_prompt}') AS ai_response"
+                    cortex_query = f"SELECT SNOWFLAKE.CORTEX.COMPLETE('llama3.1-70b', '{escaped_prompt}') AS ai_response"
                     
                 try:
                     ai_df = conn.query(cortex_query)
