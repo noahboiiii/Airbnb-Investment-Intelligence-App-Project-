@@ -323,14 +323,15 @@ with tab_ai_listings:
                     escaped_prompt = prompt.replace("'", "''")
                     cortex_query = f"SELECT SNOWFLAKE.CORTEX.COMPLETE('llama3.1-70b', '{escaped_prompt}') AS ai_response"
                     
-                try:
-                    ai_df = conn.query(cortex_query)
-                    ai_output = ai_df['ai_response'].iloc[0]
-                    st.markdown(ai_output)
-                except Exception as e:
-                    st.error(f"Cortex Execution Error: {e}")
-                    # Fallback debug to see what failed
-                    st.info("Check if your Streamlit Cloud secrets contain an active `warehouse` parameter and if the model is supported in your region.")
+                    try:
+                        ai_df = conn.query(cortex_query)
+                        # Normalize columns to lowercase to match 'ai_response'
+                        ai_df.columns = ai_df.columns.str.lower()
+                        
+                        ai_output = ai_df['ai_response'].iloc[0]
+                        st.markdown(ai_output)
+                    except Exception as e:
+                        st.error(f"Cortex Execution Error: {e}")
         else:
             st.info("No listings available for analysis with current filters.")
 
