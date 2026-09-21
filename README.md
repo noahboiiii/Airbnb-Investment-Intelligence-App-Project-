@@ -5,7 +5,10 @@ We are working as part of a data &amp; AI consulting team supporting a property 
 - City Selector
 - Investment Recommendation
 - Transparent Scoring Model
-- Short-
+- Short-Term vs Long-Term Yield Comparison
+- AI Review Intelligence & Sentiment Analysis
+- Regulatory Risk & Compliance Notes
+- Executive Memo Export
 
 ## Exact Investment Scoring Formula
 Investment Score (0-100) ranking areas, property types, and listings is calcullated dynamically using a transparent 5-factor weighting model:
@@ -24,4 +27,11 @@ The platform dynamically adapts its metric framing, weighting logic and recommen
 - Balanced Investor: Applies an equalised weighting across occupancy stability, nightly yield, guest sentiment and regulatory risks
 
 ## Data Sources
-- Primary Dataset: Inside Airbnb
+- Primary Dataset: Inside Airbnb (detailed listings, calendar data, reviews, summary metrics, and neighbourhood files)
+
+## Technology Stack
+- Frontend & UI: Python, Streamlit
+- Data Manipulation: Python, NumPy
+- Data Platform & Storage: Snowflake using secure cryptographic private key authentication
+- AI Provider: Snowflake Cortex AI running 'llama3.1-70b'
+- Version Control: GitHub
